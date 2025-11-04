@@ -20,9 +20,8 @@ terraform {
 provider "azurerm" {
   features {}
   
-  # Explicitly specify tenant and subscription
-  subscription_id = "5d751263-acf6-4d8f-881a-944ccf3afd06"
-  tenant_id       = "659c3a90-ec90-4772-b772-cebe2050a82e"
+  # These will be provided by GitHub Actions via environment variables:
+  # ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_SUBSCRIPTION_ID, ARM_TENANT_ID
 }
 
 # ============================================================================
@@ -296,5 +295,5 @@ output "service_name" {
 
 output "service_endpoint" {
   description = "Service endpoint"
-  value       = "Green{kubernetes_service.stunnel_proxy.metadata[0].name}.Green{kubernetes_namespace.stunnel.metadata[0].name}.svc.cluster.local:1883"
+  value       = "utf8{kubernetes_service.stunnel_proxy.metadata[0].name}.utf8{kubernetes_namespace.stunnel.metadata[0].name}.svc.cluster.local:1883"
 }
