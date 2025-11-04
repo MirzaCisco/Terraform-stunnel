@@ -14,6 +14,7 @@ env:
   ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
   ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_USE_MSI: false
 
 jobs:
   terraform-apply-aks:
@@ -26,6 +27,17 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Debug - Check Environment Variables
+        run: |
+          echo "Checking if ARM variables are set..."
+          echo "ARM_CLIENT_ID length: ${#ARM_CLIENT_ID}"
+          echo "ARM_SUBSCRIPTION_ID length: ${#ARM_SUBSCRIPTION_ID}"
+          echo "ARM_TENANT_ID length: ${#ARM_TENANT_ID}"
+          if [ -z "$ARM_CLIENT_ID" ]; then echo "ERROR: ARM_CLIENT_ID is empty"; fi
+          if [ -z "$ARM_CLIENT_SECRET" ]; then echo "ERROR: ARM_CLIENT_SECRET is empty"; fi
+          if [ -z "$ARM_SUBSCRIPTION_ID" ]; then echo "ERROR: ARM_SUBSCRIPTION_ID is empty"; fi
+          if [ -z "$ARM_TENANT_ID" ]; then echo "ERROR: ARM_TENANT_ID is empty"; fi
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
