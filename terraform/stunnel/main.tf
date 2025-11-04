@@ -20,8 +20,8 @@ terraform {
 provider "azurerm" {
   features {}
   
-  # These will be provided by GitHub Actions via environment variables:
-  # ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_SUBSCRIPTION_ID, ARM_TENANT_ID
+  # Force use of service principal credentials from environment variables
+  use_cli = false
 }
 
 # ============================================================================
