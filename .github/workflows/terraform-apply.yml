@@ -1,0 +1,107 @@
+﻿name: Terraform Apply
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+jobs:
+  terraform-apply-aks:
+    name: Deploy AKS Infrastructure
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform/aks
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+      - name: Save AKS Outputs
+        id: aks_outputs
+        run: |
+          echo "cluster_name=$(terraform output -raw cluster_name)" >> $GITHUB_OUTPUT
+          echo "resource_group=rg-afm-poc-main" >> $GITHUB_OUTPUT
+
+    outputs:
+      cluster_name: ${{ steps.aks_outputs.outputs.cluster_name }}
+      resource_group: ${{ steps.aks_outputs.outputs.resource_group }}
+
+  terraform-apply-stunnel:
+    name: Deploy Stunnel Proxy
+    runs-on: ubuntu-latest
+    needs: terraform-apply-aks
+    defaults:
+      run:
+        working-directory: terraform/stunnel
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        env:
+          TF_VAR_mqtt_client_cert: ${{ secrets.MQTT_CLIENT_CERT }}
+          TF_VAR_mqtt_client_key: ${{ secrets.MQTT_CLIENT_KEY }}
+          TF_VAR_aks_cluster_name: ${{ needs.terraform-apply-aks.outputs.cluster_name }}
+          TF_VAR_aks_resource_group: ${{ needs.terraform-apply-aks.outputs.resource_group }}
+        run: terraform apply -auto-approve
+
+  verify-deployment:
+    name: Verify Deployment
+    runs-on: ubuntu-latest
+    needs: terraform-apply-stunnel
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS Credentials
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ needs.terraform-apply-aks.outputs.resource_group }} \
+            --name ${{ needs.terraform-apply-aks.outputs.cluster_name }} \
+            --overwrite-existing
+
+      - name: Verify Pods
+        run: |
+          kubectl get pods -n mqtt-proxy
+          kubectl wait --for=condition=ready pod -l app=stunnel-proxy -n mqtt-proxy --timeout=300s
+
+      - name: Verify Service
+        run: |
+          kubectl get svc stunnel-proxy -n mqtt-proxy
